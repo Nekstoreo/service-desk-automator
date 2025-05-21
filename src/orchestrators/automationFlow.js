@@ -9,7 +9,7 @@ import subcategoriesArray from '../data/subcategories.js';
 
 import * as authService from '../services/authService.js';
 import * as userService from '../services/userService.js';
-import * as ticketService from '../services/ticketLifecycleService.js'; // Renombrado para claridad
+import * as ticketService from '../services/ticketLifecycleService.js'; 
 
 // Constantes para la simulación
 const TICKETS_PER_SUBCATEGORY = 4;
@@ -83,12 +83,12 @@ async function runAutomation() {
           includeAttachmentOnCreation
         );
         if (newTicket && newTicket.id) {
-          createdTickets.push(newTicket);
+          createdTickets.push(newTicket); 
           logger.info(`Ticket ${newTicket.id} creado por ${currentEmployee.username} para ${subcategory.name}`);
         } else {
           logger.warn(`No se pudo crear ticket para ${subcategory.name} por ${currentEmployee.username}. Continuando...`);
         }
-        await delay(getRandomInt(500, 1500)); // Pausa entre creación de tickets
+        await delay(getRandomInt(300, 500)); // Pausa entre creación de tickets
         employeeIndex++;
       }
     }
@@ -118,7 +118,7 @@ async function runAutomation() {
         admin.username // Admin asigna
       );
       if (assignmentResult) {
-        assignedTicketsByAnalyst.get(analystToAssign.username).push(ticket);
+        assignedTicketsByAnalyst.get(analystToAssign.username).push(ticket); 
         ticketsAssignedCount++;
         logger.info(`Ticket ${ticket.id} asignado a ${analystToAssign.username}.`);
       } else {
@@ -162,16 +162,26 @@ async function runAutomation() {
       
       // Simulación de tickets CERRADOS
       await processLifecycle(LIFECYCLE_DISTRIBUTION.CLOSED, "CERRADO", async (ticket, currentAnalystUsername) => {
-        const randomEmployee = selectRandomElement(employees.filter(e => e.id !== ticket.creatorId)) || selectRandomElement(employees); // Evitar que el creador comente si es posible
+        // El ticket.creatorId es el ID del creador. Necesitamos su username.
+        const creatorUser = allUsersArray.find(u => u.id === ticket.creatorId);
+        if (!creatorUser) {
+            logger.error(`No se pudo encontrar el usuario creador con ID ${ticket.creatorId} para el ticket ${ticket.id}. No se puede aceptar resolución.`);
+            return; // Saltar este ticket si no se encuentra el creador
+        }
+        const creatorUsernameForAccept = creatorUser.username;
+
+        const randomEmployee = selectRandomElement(employees.filter(e => e.id !== ticket.creatorId)) || selectRandomElement(employees);
+        
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
         await delay(200);
-        await ticketService.resolveTicket(ticket.id, currentAnalystUsername, Math.random() < 0.5); // 50% con adjunto
+        await ticketService.resolveTicket(ticket.id, currentAnalystUsername, Math.random() < 0.5); 
         await delay(200);
         if (randomEmployee) {
-             await ticketService.addCommentToTicket(ticket.id, randomEmployee.username, selectRandomElement(ticketService.USER_CLOSURE_COMMENTS)); // Empleado añade comentario de cierre
+             await ticketService.addCommentToTicket(ticket.id, randomEmployee.username, selectRandomElement(ticketService.USER_CLOSURE_COMMENTS)); 
              await delay(200);
         }
-        await ticketService.acceptTicketResolution(ticket.id, ticket.creatorId); // Creador original acepta
+        // Usar el username del creador para aceptar la resolución
+        await ticketService.acceptTicketResolution(ticket.id, creatorUsernameForAccept); 
       });
 
       // Simulación de tickets RESUELTOS
@@ -223,7 +233,6 @@ async function runAutomation() {
     } else if (error instanceof AppError) {
       logger.error('La automatización encontró un error operacional:', error.context);
     }
-    // No es necesario llamar a handleError aquí si los servicios ya lo hacen y relanzan
   }
 }
 
