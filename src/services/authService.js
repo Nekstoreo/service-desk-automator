@@ -10,7 +10,7 @@ const LOGIN_ENDPOINT = `${config.BASE_URL}/Auth/login`;
 
 /**
  * Autentica a un usuario individual contra la API.
- * Actualiza el objeto de usuario en el array 'allUsers' con el token y el ID (si se obtienen).
+ * Actualiza el objeto de usuario en el array 'allUsers' con el token y el ID.
  * @param {object} user - El objeto de usuario con 'username' y 'password'.
  * @returns {Promise<boolean>} True si la autenticación fue exitosa, false en caso contrario.
  */
@@ -29,22 +29,27 @@ async function authenticateUser(user) {
       timeout: config.API_TIMEOUT,
     });
 
-    if (response.data && response.data.token) {
-      // Encontrar el usuario en el array original para actualizarlo
+    if (response.data && response.data.token && response.data.user && response.data.user.id) {
       const userInArray = allUsers.find(u => u.username === user.username);
       if (userInArray) {
         userInArray.token = response.data.token;
-        // El ID del usuario no se devuelve en el login según la documentación,
-        // se obtendrá después con userService.js y se actualizará allí.
-        logger.info(`Usuario ${user.username} autenticado exitosamente.`);
+        userInArray.id = response.data.user.id;
+        userInArray.name = response.data.user.name; 
+        userInArray.emailFromApi = response.data.user.email; 
+        
+        if (userInArray.role !== response.data.user.role) {
+            logger.warn(`Discrepancia de rol para ${user.username}: Local='${userInArray.role}', API='${response.data.user.role}'. Se usará el rol de la API.`);
+            userInArray.role = response.data.user.role;
+        }
+
+        logger.info(`Usuario ${user.username} (ID: ${userInArray.id}) autenticado exitosamente.`);
       } else {
-        // Esto no debería ocurrir si 'user' proviene de 'allUsers'
         logger.warn(`Usuario ${user.username} autenticado, pero no encontrado en el array global 'allUsers'.`);
       }
       return true;
     } else {
       throw new APIError(
-        'La respuesta de login no contiene un token.',
+        'La respuesta de login no contiene un token o información de usuario completa (ID).',
         response.status,
         `Login de ${user.username}`,
         { responseData: response.data }
@@ -71,15 +76,15 @@ async function authenticateUser(user) {
         { originalError: error }
       );
     } else {
-      apiError = error; // Ya es un APIError (o AppError)
+      apiError = error;
     }
     
-    apiError.context = apiError.context || `Login de ${user.username}`; // Asegurar contexto
+    apiError.context = apiError.context || `Login de ${user.username}`;
     handleError(apiError);
-    // Actualizar el usuario en el array para marcar el fallo de token
     const userInArray = allUsers.find(u => u.username === user.username);
     if (userInArray) {
         userInArray.token = null;
+        userInArray.id = null;
     }
     return false;
   }
@@ -93,14 +98,12 @@ async function authenticateAllUsers() {
   logger.separator('INICIO DE AUTENTICACIÓN DE USUARIOS');
   let successfulAuthentications = 0;
 
-  // Autenticar usuarios secuencialmente para no sobrecargar la API (si es sensible)
-  // y para que los logs sean más fáciles de seguir.
   for (const user of allUsers) {
     const success = await authenticateUser(user);
     if (success) {
       successfulAuthentications++;
     }
-    await delay(500); // Pequeña pausa entre logins
+    await delay(200); 
   }
 
   logger.info(`Total de usuarios autenticados exitosamente: ${successfulAuthentications} de ${allUsers.length}`);
@@ -117,7 +120,6 @@ async function authenticateAllUsers() {
 
 /**
  * Obtiene el token de un usuario específico.
- * Es una función de conveniencia para acceder al token almacenado después de la autenticación.
  * @param {string} username - El nombre de usuario.
  * @returns {string | null} El token JWT si el usuario está autenticado, o null.
  */
@@ -130,4 +132,19 @@ function getUserToken(username) {
   return null;
 }
 
-export { authenticateUser, authenticateAllUsers, getUserToken };
+/**
+ * Obtiene el ID de un usuario específico.
+ * @param {string} username - El nombre de usuario.
+ * @returns {string | null} El ID del usuario si se conoce, o null.
+ */
+function getUserId(username) {
+  const user = allUsers.find(u => u.username === username);
+  if (user && user.id) {
+    return user.id;
+  }
+  logger.warn(`ID no encontrado para el usuario: ${username}. ¿Fue autenticado y se obtuvo su ID?`);
+  return null;
+}
+
+
+export { authenticateUser, authenticateAllUsers, getUserToken, getUserId };
