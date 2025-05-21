@@ -17,8 +17,8 @@ const users = [
   { username: 'carlos.lopez', password: 'P@ssw0rd', role: 'Analyst', id: null, token: null },
   { username: 'laura.martinez', password: 'P@ssw0rd', role: 'Employee', id: null, token: null },
   { username: 'sofia.fernandez', password: 'P@ssw0rd', role: 'Employee', id: null, token: null },
-  { username: 'andres.ramirez', password: 'P@ssw0rd', role: 'Employee', id: null, token: null },
-  { username: 'paula.jimenez', password: 'P@ssw0rd', role: 'Employee', id: null, token: null },
+  // { username: 'andres.ramirez', password: 'P@ssw0rd', role: 'Employee', id: null, token: null },
+  // { username: 'paula.jimenez', password: 'P@ssw0rd', role: 'Employee', id: null, token: null },
 ];
 
 /**
