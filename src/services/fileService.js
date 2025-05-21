@@ -1,6 +1,6 @@
 // src/services/fileService.js
 import fs from 'node:fs/promises';
-import fsConstants from 'node:fs/constants';
+import { constants as fsConstants } from 'fs';
 import path from 'node:path';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
