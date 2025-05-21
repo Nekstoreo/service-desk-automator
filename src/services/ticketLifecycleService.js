@@ -173,21 +173,20 @@ async function addCommentToTicket(ticketId, commenterUsername, commentText, incl
 /**
  * Asigna un ticket a un analista.
  * @param {string} ticketId - ID del ticket.
- * @param {string} analystUsernameToAssign - Username del analista a quien se asignará.
- * @param {string} assignerUsername - Username de quien realiza la asignación (analista o admin).
+ * @param {string} analystUsername - Username del analista a quien se asignará.
  * @returns {Promise<object|null>} La respuesta de la API o null si falla.
  */
-async function assignTicketToAnalyst(ticketId, analystUsernameToAssign, assignerUsername) {
-  logger.info(`Asignando ticket ${ticketId} al analista ${analystUsernameToAssign} por ${assignerUsername}.`);
-  const assignerToken = getUserToken(assignerUsername);
-  const assignee = getLocalUserByUsername(analystUsernameToAssign);
+async function assignTicketToAnalyst(ticketId, analystUsername) {
+  logger.info(`Autoasignando ticket ${ticketId} al analista ${analystUsername}.`);
+  const analystToken = getUserToken(analystUsername);
+  const assignee = getLocalUserByUsername(analystUsername);
 
-  if (!assignerToken) {
-    logger.error(`No se pudo obtener token para el asignador: ${assignerUsername}`);
+  if (!analystToken) {
+    logger.error(`No se pudo obtener token para el analista: ${analystUsername}`);
     return null;
   }
   if (!assignee || !assignee.id) {
-    logger.error(`No se pudo obtener ID para el analista a asignar: ${analystUsernameToAssign}. Asegúrate de que haya sido autenticado y su ID obtenido.`);
+    logger.error(`No se pudo obtener ID para el analista: ${analystUsername}. Asegúrate de que haya sido autenticado y su ID obtenido.`);
     return null;
   }
 
@@ -198,13 +197,13 @@ async function assignTicketToAnalyst(ticketId, analystUsernameToAssign, assigner
       assignedUserId: assignee.id,
       comment: assignmentComment,
     }, {
-      headers: { Authorization: `Bearer ${assignerToken}` },
+      headers: { Authorization: `Bearer ${analystToken}` },
       timeout: config.API_TIMEOUT,
     });
-    logger.info(`Ticket ${ticketId} asignado exitosamente a ${analystUsernameToAssign}.`);
+    logger.info(`Ticket ${ticketId} autoasignado exitosamente al analista ${analystUsername}.`);
     return response.data;
   } catch (error) {
-    handleTicketServiceError(error, `Asignar ticket ${ticketId} a ${analystUsernameToAssign}`, assignerUsername);
+    handleTicketServiceError(error, `Autoasignar ticket ${ticketId} al analista ${analystUsername}`, analystUsername);
     return null;
   }
 }
