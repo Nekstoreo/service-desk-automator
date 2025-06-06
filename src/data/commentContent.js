@@ -138,18 +138,7 @@ export const LOCK_REASONS = [
 /**
  * Comentarios predefinidos para ser utilizados al asignar un ticket a un analista.
  */
-export const ASSIGN_COMMENTS = [
-  "Asignando ticket al especialista correspondiente para su análisis y pronta resolución.",
-  "Redirigiendo caso al analista con experiencia en este tipo de incidencias para su atención.",
-  "Ticket asignado al técnico especializado en esta categoría de problemas.",
-  "Derivando el caso al área correspondiente para su evaluación y resolución.",
-  "Asignando incidencia al equipo técnico especializado en este tipo de situaciones.",
-  "Ticket en proceso de asignación al analista con conocimientos específicos en el área.",
-  "Canalizando su solicitud al especialista adecuado para brindarle la mejor atención.",
-  "Caso dirigido al analista con experiencia en la resolución de este tipo de problemas.",
-  "Asignando su caso a un técnico que ha resuelto situaciones similares anteriormente.",
-  "Su ticket ha sido asignado al especialista del área para su pronta atención.",
-];
+
 
 /**
  * Textos de comentarios genéricos organizados por rol (analista, empleado) y

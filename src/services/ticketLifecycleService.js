@@ -16,7 +16,6 @@ import {
   ANALYST_COMMENTS,
   USER_COMMENTS,
   RESOLUTION_COMMENTS,
-  ASSIGN_COMMENTS,
   LOCK_REASONS,
   USER_CLOSURE_COMMENTS,
   ANALYST_FOLLOWUP_COMMENTS,
@@ -190,12 +189,9 @@ async function assignTicketToAnalyst(ticketId, analystUsername) {
     return null;
   }
 
-  const assignmentComment = selectRandomElement(ASSIGN_COMMENTS);
-
   try {
     const response = await axios.put(`${TICKETS_BASE_ENDPOINT}/${ticketId}/assign`, {
       assignedUserId: assignee.id,
-      comment: assignmentComment,
     }, {
       headers: { Authorization: `Bearer ${analystToken}` },
       timeout: config.API_TIMEOUT,
