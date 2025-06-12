@@ -103,7 +103,7 @@ async function authenticateAllUsers() {
     if (success) {
       successfulAuthentications++;
     }
-    await delay(200); 
+    await delay(20); 
   }
 
   logger.info(`Total de usuarios autenticados exitosamente: ${successfulAuthentications} de ${allUsers.length}`);

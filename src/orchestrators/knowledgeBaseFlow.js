@@ -61,47 +61,26 @@ async function runKbAutomation() {
     // Paso 2: Creación de Categorías y Artículos KB
     logger.separator('PASO 2: CREACIÓN DE CATEGORÍAS Y ARTÍCULOS KB');
 
-    for (const categoryData of KB_CATEGORIES) {
-      logger.info(`Procesando categoría KB: ${categoryData.name}`);
-      const createdCategory = await kbService.createKbCategory(
-        categoryData.name,
-        categoryData.description,
-        adminUser.username
+    // Ahora los artículos no están agrupados por categoría ni requieren creación de categorías
+    logger.info(`Creando ${KB_ARTICLES.length} artículos de la base de conocimientos...`);
+    for (const articleData of KB_ARTICLES) {
+      // Decidir aleatoriamente si incluir adjunto (ej. 60% de probabilidad)
+      const includeAttachment = Math.random() < 0.6;
+      // El backend espera 'topic' en vez de 'title' y ya no requiere categoryId
+      const newArticle = await kbService.createKbArticle(
+        articleData.topic,
+        articleData.content,
+        undefined, // categoryId eliminado
+        articleData.keywords,
+        analystUser.username,
+        includeAttachment
       );
-
-      if (createdCategory && createdCategory.id) {
-        logger.info(`Categoría KB '${categoryData.name}' creada con ID: ${createdCategory.id}`);
-        
-        const articlesForCategory = KB_ARTICLES[categoryData.name];
-        if (articlesForCategory && articlesForCategory.length > 0) {
-          logger.info(`Creando ${articlesForCategory.length} artículos para la categoría '${categoryData.name}'...`);
-          for (const articleData of articlesForCategory) {
-            // Decidir aleatoriamente si incluir adjunto (ej. 60% de probabilidad)
-            const includeAttachment = Math.random() < 0.6;
-            
-            const newArticle = await kbService.createKbArticle(
-              articleData.title,
-              articleData.content,
-              createdCategory.id,
-              articleData.keywords,
-              analystUser.username, // Analista crea artículos
-              includeAttachment
-            );
-
-            if (newArticle) {
-              logger.info(`Artículo KB '${articleData.title}' creado con ID: ${newArticle.id}`);
-            } else {
-              logger.warn(`No se pudo crear el artículo KB '${articleData.title}' para la categoría '${categoryData.name}'. Continuando...`);
-            }
-            await delay(getRandomInt(700, 1800)); // Pausa entre creación de artículos
-          }
-        } else {
-          logger.info(`No hay artículos definidos para la categoría KB '${categoryData.name}'.`);
-        }
+      if (newArticle) {
+        logger.info(`Artículo KB '${articleData.topic}' creado con ID: ${newArticle.id}`);
       } else {
-        logger.warn(`No se pudo crear la categoría KB '${categoryData.name}' o no se obtuvo ID. Omitiendo sus artículos.`);
+        logger.warn(`No se pudo crear el artículo KB '${articleData.topic}'. Continuando...`);
       }
-      await delay(getRandomInt(1000, 2500)); // Pausa entre procesamiento de categorías
+      await delay(getRandomInt(20, 80)); // Pausa entre creación de artículos
     }
 
     logger.separator('FIN DE LA AUTOMATIZACIÓN DE LA BASE DE CONOCIMIENTOS');

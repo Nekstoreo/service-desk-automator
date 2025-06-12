@@ -236,7 +236,7 @@ async function promoteAnalysts() {
     if (success) {
       successfulPromotions++;
     }
-    await delay(200); // Pequeña pausa entre promociones
+    await delay(20); // Pequeña pausa entre promociones
   }
 
   logger.info(`Total de analistas promovidos exitosamente en esta ejecución: ${successfulPromotions} de ${analystsRequiringPromotion.length}`);

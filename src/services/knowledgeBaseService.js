@@ -82,25 +82,26 @@ async function createKbCategory(categoryName, categoryDescription, creatorUserna
   }
 }
 
+
 /**
- * Crea un nuevo artículo en la Base de Conocimientos.
- * @param {string} articleTitle - Título del artículo.
+ * Crea un nuevo artículo en la Base de Conocimientos (ajustado: sin categoría y usando 'topic').
+ * @param {string} topic - Tema del artículo.
  * @param {string} articleContent - Contenido del artículo.
- * @param {string} kbCategoryId - ID de la categoría KB a la que pertenece el artículo.
+ * @param {undefined} _kbCategoryId - Ya no se usa categoría.
  * @param {string[]} keywords - Array de palabras clave para el artículo.
  * @param {string} creatorUsername - Username del usuario (Analista) que crea el artículo.
  * @param {boolean} [includeAttachment=false] - Si se debe incluir un adjunto aleatorio.
  * @returns {Promise<object|null>} El objeto del artículo creado por la API o null si falla.
  */
 async function createKbArticle(
-  articleTitle,
+  topic,
   articleContent,
-  kbCategoryId,
+  _kbCategoryId,
   keywords,
   creatorUsername,
   includeAttachment = false
 ) {
-  logger.info(`Creando artículo KB '${articleTitle}' en categoría ID ${kbCategoryId} por ${creatorUsername} ${includeAttachment ? 'con adjunto' : ''}.`);
+  logger.info(`Creando artículo KB '${topic}' por ${creatorUsername} ${includeAttachment ? 'con adjunto' : ''}.`);
   const creatorToken = getUserToken(creatorUsername);
 
   if (!creatorToken) {
@@ -109,18 +110,17 @@ async function createKbArticle(
   }
 
   const form = new FormData();
-  form.append('Title', articleTitle);
+  form.append('Topic', topic); // Cambiado a 'Topic'
   form.append('Content', articleContent);
-  form.append('KnowledgeBaseCategoryId', kbCategoryId);
+  // Ya no se agrega categoryId
 
   if (Array.isArray(keywords)) {
     keywords.forEach(keyword => {
-      form.append('Keywords', keyword); // La API espera múltiples campos 'Keywords'
+      form.append('Keywords', keyword);
     });
   } else if (typeof keywords === 'string' && keywords.trim() !== '') {
-    form.append('Keywords', keywords); // Si es un solo string, añadirlo
+    form.append('Keywords', keywords);
   }
-
 
   if (includeAttachment) {
     const attachment = await getRandomAttachmentDetails();
@@ -135,16 +135,15 @@ async function createKbArticle(
   try {
     const response = await axios.post(KB_ARTICLES_ENDPOINT, form, {
       headers: {
-        ...form.getHeaders(), // Necesario para FormData con axios
+        ...form.getHeaders(),
         Authorization: `Bearer ${creatorToken}`,
       },
       timeout: config.API_TIMEOUT,
     });
-    // La API (punto 5.6) devuelve el objeto del artículo creado, incluyendo su ID.
-    logger.info(`Artículo KB '${articleTitle}' (ID: ${response.data.id}) creado exitosamente.`);
+    logger.info(`Artículo KB '${topic}' (ID: ${response.data.id}) creado exitosamente.`);
     return response.data;
   } catch (error) {
-    handleKbServiceError(error, `Crear artículo KB '${articleTitle}'`, creatorUsername);
+    handleKbServiceError(error, `Crear artículo KB '${topic}'`, creatorUsername);
     return null;
   }
 }

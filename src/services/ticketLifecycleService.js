@@ -4,7 +4,7 @@ import FormData from 'form-data'; // Necesitarás instalar form-data: pnpm add f
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
 import { handleError, APIError, AppError } from '../utils/errorHandler.js';
-import { selectRandomElement, delay } from '../utils/helpers.js';
+import { selectRandomElement, delay, getRandomInt } from '../utils/helpers.js';
 import { getUserToken, getUserId } from './authService.js';
 import { getLocalUserByUsername } from './userService.js';
 import { getRandomAttachmentDetails } from './fileService.js';
@@ -97,14 +97,21 @@ async function createTicket(creatorUsername, subcategoryName, includeAttachment 
   form.append('Description', ticketDescription);
   form.append('SubcategoryId', subcategory.id);
 
-  if (includeAttachment) {
+  // Siempre agregar de 1 a 3 archivos adjuntos aleatorios
+  const numAttachments = getRandomInt(1, 4); // 1, 2 o 3
+  let attachedCount = 0;
+  for (let i = 0; i < numAttachments; i++) {
     const attachment = await getRandomAttachmentDetails();
     if (attachment) {
       form.append('Attachments', attachment.fileContent, attachment.fileName);
       logger.info(`Adjuntando archivo: ${attachment.fileName}`);
+      attachedCount++;
     } else {
-      logger.warn('Se solicitó adjunto pero no se pudo obtener uno. Creando ticket sin adjunto.');
+      logger.warn('No se pudo obtener un adjunto para el ticket.');
     }
+  }
+  if (attachedCount === 0) {
+    logger.warn('No se adjuntó ningún archivo al ticket.');
   }
 
   try {

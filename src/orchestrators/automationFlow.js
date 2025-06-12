@@ -173,12 +173,12 @@ async function runAutomation() {
         const randomEmployee = selectRandomElement(employees.filter(e => e.id !== ticket.creatorId)) || selectRandomElement(employees);
         
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
-        await delay(200);
+        await delay(20);
         await ticketService.resolveTicket(ticket.id, currentAnalystUsername, Math.random() < 0.5); 
-        await delay(200);
+        await delay(20);
         if (randomEmployee) {
              await ticketService.addCommentToTicket(ticket.id, randomEmployee.username, selectRandomElement(ticketService.USER_CLOSURE_COMMENTS)); 
-             await delay(200);
+             await delay(20);
         }
         // Usar el username del creador para aceptar la resolución
         await ticketService.acceptTicketResolution(ticket.id, creatorUsernameForAccept); 
@@ -187,14 +187,14 @@ async function runAutomation() {
       // Simulación de tickets RESUELTOS
       await processLifecycle(LIFECYCLE_DISTRIBUTION.RESOLVED, "RESUELTO", async (ticket, currentAnalystUsername) => {
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
-        await delay(200);
+        await delay(20);
         await ticketService.resolveTicket(ticket.id, currentAnalystUsername, Math.random() < 0.5);
       });
 
       // Simulación de tickets BLOQUEADOS
       await processLifecycle(LIFECYCLE_DISTRIBUTION.LOCKED, "BLOQUEADO", async (ticket, currentAnalystUsername) => {
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
-        await delay(200);
+        await delay(20);
         await ticketService.lockTicket(ticket.id, currentAnalystUsername);
       });
 
@@ -202,10 +202,10 @@ async function runAutomation() {
       await processLifecycle(LIFECYCLE_DISTRIBUTION.IN_PROGRESS_WITH_COMMENTS, "EN PROGRESO CON COMENTARIOS", async (ticket, currentAnalystUsername) => {
         const randomEmployee = selectRandomElement(employees.filter(e => e.id !== ticket.creatorId)) || selectRandomElement(employees);
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS), Math.random() < 0.3);
-        await delay(200);
+        await delay(20);
         if (randomEmployee) {
             await ticketService.addCommentToTicket(ticket.id, randomEmployee.username, selectRandomElement(ticketService.USER_COMMENTS), Math.random() < 0.2);
-            await delay(200);
+            await delay(20);
         }
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_FOLLOWUP_COMMENTS));
       });
