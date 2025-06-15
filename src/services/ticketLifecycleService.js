@@ -10,7 +10,6 @@ import { getLocalUserByUsername } from './userService.js';
 import { getRandomAttachmentDetails } from './fileService.js';
 
 // Datos para contenido de tickets y comentarios
-import subcategoriesData from '../data/subcategories.js';
 import { TITLES, TICKET_DETAILS, PREFIXES, SUFFIXES } from '../data/ticketContent.js';
 import {
   ANALYST_COMMENTS,
@@ -63,12 +62,12 @@ function handleTicketServiceError(error, context, usernameForContext = '') {
 /**
  * Crea un nuevo ticket.
  * @param {string} creatorUsername - Username del empleado que crea el ticket.
- * @param {string} subcategoryName - Nombre de la subcategoría del ticket.
+ * @param {object} subcategory - Objeto de la subcategoría con id y name.
  * @param {boolean} [includeAttachment=false] - Si se debe incluir un adjunto aleatorio.
  * @returns {Promise<object|null>} El objeto del ticket creado por la API o null si falla.
  */
-async function createTicket(creatorUsername, subcategoryName, includeAttachment = false) {
-  logger.info(`Creando ticket para ${creatorUsername} en subcategoría '${subcategoryName}' ${includeAttachment ? 'con adjunto' : 'sin adjunto'}.`);
+async function createTicket(creatorUsername, subcategory, includeAttachment = false) {
+  logger.info(`Creando ticket para ${creatorUsername} en subcategoría '${subcategory.name}' ${includeAttachment ? 'con adjunto' : 'sin adjunto'}.`);
   // Obtener token y datos de usuario en paralelo
   const [creatorToken, creator] = await Promise.all([
     Promise.resolve(getUserToken(creatorUsername)),
@@ -80,17 +79,12 @@ async function createTicket(creatorUsername, subcategoryName, includeAttachment 
     return null;
   }
 
-  const subcategory = subcategoriesData.find(s => s.name === subcategoryName);
-  if (!subcategory) {
-    logger.error(`Subcategoría '${subcategoryName}' no encontrada en los datos locales.`);
-    return null;
-  }
 
-  const titlesForSubcategory = TITLES[subcategoryName] || TITLES["Errores generales (Aplicaciones)"];
-  const ticketTitle = selectRandomElement(titlesForSubcategory);
+  // La subcategoría se obtiene ahora desde el flujo principal y se pasa solo el nombre
 
-  const detailsForSubcategory = TICKET_DETAILS[subcategoryName] || TICKET_DETAILS["Errores generales (Aplicaciones)"];
-  const ticketDetailBody = selectRandomElement(detailsForSubcategory);
+  // Ahora los títulos y detalles son agnósticos a la subcategoría
+  const ticketTitle = selectRandomElement(TITLES);
+  const ticketDetailBody = selectRandomElement(TICKET_DETAILS);
   const prefix = selectRandomElement(PREFIXES).replace('{username}', creator.name || creatorUsername); // Usar nombre real si está disponible
   const suffix = selectRandomElement(SUFFIXES);
   const ticketDescription = `${prefix}${ticketDetailBody}${suffix}`;
@@ -130,8 +124,41 @@ async function createTicket(creatorUsername, subcategoryName, includeAttachment 
     logger.info(`Ticket creado exitosamente por ${creatorUsername}. ID: ${response.data.id}, Título: ${response.data.title}`);
     return response.data; // Devuelve el objeto ticket completo
   } catch (error) {
-    handleTicketServiceError(error, 'Crear ticket', creatorUsername);
-    return null; // O relanzar si se prefiere detener el flujo
+    // Log del error detallado antes de manejarlo
+    logger.error(`Error detallado al crear ticket para ${creatorUsername}:`, {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
+    // Registrar el error pero no relanzarlo para que el flujo continue
+    let apiError;
+    const fullContext = `Crear ticket (Usuario: ${creatorUsername})`;
+
+    if (error.isAxiosError) {
+      const status = error.response ? error.response.status : 500;
+      const message = error.response?.data?.message || error.response?.data?.title || error.message;
+      apiError = new APIError(
+        message,
+        status,
+        fullContext,
+        { requestConfig: error.config, responseData: error.response?.data }
+      );
+    } else if (!(error instanceof APIError || error instanceof AppError)) {
+      apiError = new APIError(
+        error.message || 'Error desconocido en servicio de tickets.',
+        500,
+        fullContext,
+        { originalError: error }
+      );
+    } else {
+      error.context = error.context || fullContext;
+      apiError = error;
+    }
+    
+    handleError(apiError); // Solo loguea, no lanza
+    return null;
   }
 }
 

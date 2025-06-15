@@ -5,19 +5,16 @@ import { initializeGlobalErrorHandlers, AppError } from '../utils/errorHandler.j
 import { initializeFileCache } from '../services/fileService.js';
 
 import allUsersArray, { USER_ROLES, getUsersByRole } from '../data/users.js';
-import subcategoriesArray from '../data/subcategories.js';
 
 import * as authService from '../services/authService.js';
 import * as userService from '../services/userService.js';
 import * as ticketService from '../services/ticketLifecycleService.js'; 
 
-// Constantes para la simulación
-const TICKETS_PER_SUBCATEGORY = 4;
-const TOTAL_SUBCATEGORIES = subcategoriesArray.length; // Deberían ser 10
-const TOTAL_TICKETS_TO_CREATE = TOTAL_SUBCATEGORIES * TICKETS_PER_SUBCATEGORY; // 40
+// Constantes para la simulación (ajustables)
+const TOTAL_TICKETS_TO_CREATE = 200; // Ahora configurable para pruebas de estrés
 
-const TICKETS_TO_ASSIGN_PER_ANALYST = 10;
 const REQUIRED_ANALYSTS = 2;
+const TICKETS_TO_ASSIGN_PER_ANALYST = 10;
 const TOTAL_TICKETS_TO_ASSIGN = TICKETS_TO_ASSIGN_PER_ANALYST * REQUIRED_ANALYSTS; // 20
 
 // Estados de ciclo de vida para los tickets asignados a cada analista
@@ -51,6 +48,33 @@ async function runAutomation() {
         throw new AppError('Fallo crítico: Ningún usuario pudo ser autenticado. Abortando.', 500, false);
     }
 
+    // Obtener subcategorías activas desde la API y seleccionar 20 aleatorias
+    logger.separator('OBTENIENDO SUBCATEGORÍAS ACTIVAS DESDE LA API');
+    let apiSubcategories = [];
+    let selectedSubcategories = [];
+    const adminUser = getUsersByRole(USER_ROLES.ADMINISTRATOR).find(u => u.token && u.id);
+    if (adminUser) {
+      try {
+        const axios = (await import('axios')).default;
+        const config = (await import('../config/index.js')).default;
+        const response = await axios.get(`${config.BASE_URL}/Subcategories`, {
+          headers: { Authorization: `Bearer ${adminUser.token}` },
+          timeout: config.API_TIMEOUT || 60000
+        });
+        apiSubcategories = response.data.filter(s => s.isActive);
+        logger.info(`Subcategorías activas obtenidas de la API: ${apiSubcategories.length}`);
+        // Seleccionar 20 aleatorias
+        selectedSubcategories = shuffleArray(apiSubcategories).slice(0, 20);
+        logger.info(`Se seleccionaron aleatoriamente ${selectedSubcategories.length} subcategorías para la creación de tickets.`);
+      } catch (err) {
+        logger.error('No se pudo obtener la lista de subcategorías desde la API.');
+        throw err;
+      }
+    } else {
+      logger.error('No se encontró un admin autenticado para obtener subcategorías desde la API.');
+      throw new AppError('No se encontró un admin autenticado para obtener subcategorías desde la API.', 500, false);
+    }
+
     await userService.fetchAndStoreUserIds(); // Sincronizar/verificar IDs
     await userService.promoteAnalysts();
 
@@ -64,37 +88,32 @@ async function runAutomation() {
 
     logger.info(`Usuarios listos: ${employees.length} empleados, ${analysts.length} analistas, 1 admin.`);
 
-    // Paso 2: Creación de Tickets
-    logger.separator(`PASO 2: CREACIÓN DE ${TOTAL_TICKETS_TO_CREATE} TICKETS`);
+    // Paso 2: Creación de Tickets (secuencial)
+    logger.separator(`PASO 2: CREACIÓN DE ${TOTAL_TICKETS_TO_CREATE} TICKETS (secuencial)`);
     const createdTickets = [];
-    let employeeIndex = 0;
-
-    for (let i = 0; i < TICKETS_PER_SUBCATEGORY; i++) {
-      for (const subcategory of subcategoriesArray) {
-        const currentEmployee = employees[employeeIndex % employees.length];
-        logger.info(`Ronda ${i + 1}/${TICKETS_PER_SUBCATEGORY} para subcategoría ${subcategory.name}`);
-        
-        // Decidir aleatoriamente si incluir adjunto (ej. 30% de probabilidad)
-        const includeAttachmentOnCreation = Math.random() < 0.3; 
-        
-        const newTicket = await ticketService.createTicket(
-          currentEmployee.username,
-          subcategory.name,
-          includeAttachmentOnCreation
-        );
+    for (let i = 0; i < TOTAL_TICKETS_TO_CREATE; i++) {
+      const employee = employees[i % employees.length];
+      const subcategory = selectedSubcategories[i % selectedSubcategories.length];
+      const includeAttachmentOnCreation = Math.random() < 0.3;
+      
+      try {
+        const newTicket = await ticketService.createTicket(employee.username, subcategory, includeAttachmentOnCreation);
         if (newTicket && newTicket.id) {
-          createdTickets.push(newTicket); 
-          logger.info(`Ticket ${newTicket.id} creado por ${currentEmployee.username} para ${subcategory.name}`);
+          createdTickets.push(newTicket);
+          logger.info(`Ticket ${newTicket.id} creado por ${employee.username} para ${subcategory.name}`);
         } else {
-          logger.warn(`No se pudo crear ticket para ${subcategory.name} por ${currentEmployee.username}. Continuando...`);
+          logger.warn(`No se pudo crear ticket para ${subcategory.name} por ${employee.username}.`);
         }
-        await delay(getRandomInt(300, 500)); // Pausa entre creación de tickets
-        employeeIndex++;
+      } catch (error) {
+        logger.error(`Error al crear ticket para ${employee.username} en subcategoría ${subcategory.name}: ${error.message}`);
       }
+      
+      // Pequeña pausa entre creaciones para no sobrecargar la API
+      await delay(50);
     }
     logger.info(`Total de tickets creados exitosamente: ${createdTickets.length} de ${TOTAL_TICKETS_TO_CREATE} intentos.`);
     if (createdTickets.length < TOTAL_TICKETS_TO_ASSIGN) {
-        throw new AppError(`No se crearon suficientes tickets (${createdTickets.length}) para la asignación requerida (${TOTAL_TICKETS_TO_ASSIGN}). Abortando.`, 500, false);
+      throw new AppError(`No se crearon suficientes tickets (${createdTickets.length}) para la asignación requerida (${TOTAL_TICKETS_TO_ASSIGN}). Abortando.`, 500, false);
     }
 
 
@@ -124,7 +143,7 @@ async function runAutomation() {
       } else {
         logger.warn(`No se pudo asignar el ticket ${ticket.id} a ${analystToAssign.username}.`);
       }
-      await delay(getRandomInt(300, 1000));
+      // Sin espera artificial
     }
     logger.info(`Total de tickets asignados: ${ticketsAssignedCount}`);
 
@@ -156,7 +175,7 @@ async function runAutomation() {
           } catch (e) {
             logger.error(`Error al procesar ticket ${ticket.id} como ${type}: ${e.message}`);
           }
-          await delay(getRandomInt(500, 1500));
+          // Sin espera artificial
         }
       };
       
@@ -173,12 +192,12 @@ async function runAutomation() {
         const randomEmployee = selectRandomElement(employees.filter(e => e.id !== ticket.creatorId)) || selectRandomElement(employees);
         
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
-        await delay(20);
+        // Sin espera artificial
         await ticketService.resolveTicket(ticket.id, currentAnalystUsername, Math.random() < 0.5); 
-        await delay(20);
+        // Sin espera artificial
         if (randomEmployee) {
              await ticketService.addCommentToTicket(ticket.id, randomEmployee.username, selectRandomElement(ticketService.USER_CLOSURE_COMMENTS)); 
-             await delay(20);
+             // Sin espera artificial
         }
         // Usar el username del creador para aceptar la resolución
         await ticketService.acceptTicketResolution(ticket.id, creatorUsernameForAccept); 
@@ -187,14 +206,14 @@ async function runAutomation() {
       // Simulación de tickets RESUELTOS
       await processLifecycle(LIFECYCLE_DISTRIBUTION.RESOLVED, "RESUELTO", async (ticket, currentAnalystUsername) => {
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
-        await delay(20);
+        // Sin espera artificial
         await ticketService.resolveTicket(ticket.id, currentAnalystUsername, Math.random() < 0.5);
       });
 
       // Simulación de tickets BLOQUEADOS
       await processLifecycle(LIFECYCLE_DISTRIBUTION.LOCKED, "BLOQUEADO", async (ticket, currentAnalystUsername) => {
         await ticketService.addCommentToTicket(ticket.id, currentAnalystUsername, selectRandomElement(ticketService.ANALYST_COMMENTS));
-        await delay(20);
+        // Sin espera artificial
         await ticketService.lockTicket(ticket.id, currentAnalystUsername);
       });
 
@@ -219,7 +238,7 @@ async function runAutomation() {
               if (ticketIdx >= shuffledTickets.length) break;
               const ticket = shuffledTickets[ticketIdx++];
               logger.info(`-- Ticket ${ticket.id} (${ticket.title}) -> EN PROGRESO SIN COMENTARIOS (solo asignado)`);
-              await delay(100); // Pequeña pausa simbólica
+              // Sin espera artificial
           }
       }
     }
