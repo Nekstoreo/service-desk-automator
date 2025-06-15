@@ -4,7 +4,7 @@ import FormData from 'form-data'; // Necesitarás instalar form-data: pnpm add f
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
 import { handleError, APIError, AppError } from '../utils/errorHandler.js';
-import { selectRandomElement, delay, getRandomInt } from '../utils/helpers.js';
+import { selectRandomElement, getRandomInt } from '../utils/helpers.js';
 import { getUserToken, getUserId } from './authService.js';
 import { getLocalUserByUsername } from './userService.js';
 import { getRandomAttachmentDetails } from './fileService.js';
@@ -69,8 +69,11 @@ function handleTicketServiceError(error, context, usernameForContext = '') {
  */
 async function createTicket(creatorUsername, subcategoryName, includeAttachment = false) {
   logger.info(`Creando ticket para ${creatorUsername} en subcategoría '${subcategoryName}' ${includeAttachment ? 'con adjunto' : 'sin adjunto'}.`);
-  const creatorToken = getUserToken(creatorUsername);
-  const creator = getLocalUserByUsername(creatorUsername);
+  // Obtener token y datos de usuario en paralelo
+  const [creatorToken, creator] = await Promise.all([
+    Promise.resolve(getUserToken(creatorUsername)),
+    Promise.resolve(getLocalUserByUsername(creatorUsername))
+  ]);
 
   if (!creatorToken || !creator) {
     logger.error(`No se pudo obtener token o datos para el creador: ${creatorUsername}`);
@@ -97,11 +100,12 @@ async function createTicket(creatorUsername, subcategoryName, includeAttachment 
   form.append('Description', ticketDescription);
   form.append('SubcategoryId', subcategory.id);
 
-  // Siempre agregar de 1 a 3 archivos adjuntos aleatorios
+  // Siempre agregar de 1 a 3 archivos adjuntos aleatorios (en paralelo)
   const numAttachments = getRandomInt(1, 4); // 1, 2 o 3
   let attachedCount = 0;
-  for (let i = 0; i < numAttachments; i++) {
-    const attachment = await getRandomAttachmentDetails();
+  const attachmentPromises = Array.from({ length: numAttachments }, () => getRandomAttachmentDetails());
+  const attachments = await Promise.all(attachmentPromises);
+  attachments.forEach(attachment => {
     if (attachment) {
       form.append('Attachments', attachment.fileContent, attachment.fileName);
       logger.info(`Adjuntando archivo: ${attachment.fileName}`);
@@ -109,7 +113,7 @@ async function createTicket(creatorUsername, subcategoryName, includeAttachment 
     } else {
       logger.warn('No se pudo obtener un adjunto para el ticket.');
     }
-  }
+  });
   if (attachedCount === 0) {
     logger.warn('No se adjuntó ningún archivo al ticket.');
   }
@@ -141,7 +145,11 @@ async function createTicket(creatorUsername, subcategoryName, includeAttachment 
  */
 async function addCommentToTicket(ticketId, commenterUsername, commentText, includeAttachment = false) {
   logger.info(`Añadiendo comentario de ${commenterUsername} al ticket ${ticketId} ${includeAttachment ? 'con adjunto' : ''}.`);
-  const commenterToken = getUserToken(commenterUsername);
+  // Obtener token y adjunto (si aplica) en paralelo
+  const [commenterToken, attachment] = await Promise.all([
+    Promise.resolve(getUserToken(commenterUsername)),
+    includeAttachment ? getRandomAttachmentDetails() : Promise.resolve(null)
+  ]);
   if (!commenterToken) {
     logger.error(`No se pudo obtener token para el comentador: ${commenterUsername}`);
     return null;
@@ -150,14 +158,11 @@ async function addCommentToTicket(ticketId, commenterUsername, commentText, incl
   const form = new FormData();
   form.append('Comment', commentText);
 
-  if (includeAttachment) {
-    const attachment = await getRandomAttachmentDetails();
-    if (attachment) {
-      form.append('Attachments', attachment.fileContent, attachment.fileName);
-      logger.info(`Adjuntando archivo al comentario: ${attachment.fileName}`);
-    } else {
-      logger.warn('Se solicitó adjunto para comentario pero no se pudo obtener uno.');
-    }
+  if (includeAttachment && attachment) {
+    form.append('Attachments', attachment.fileContent, attachment.fileName);
+    logger.info(`Adjuntando archivo al comentario: ${attachment.fileName}`);
+  } else if (includeAttachment && !attachment) {
+    logger.warn('Se solicitó adjunto para comentario pero no se pudo obtener uno.');
   }
 
   try {
@@ -184,8 +189,11 @@ async function addCommentToTicket(ticketId, commenterUsername, commentText, incl
  */
 async function assignTicketToAnalyst(ticketId, analystUsername) {
   logger.info(`Autoasignando ticket ${ticketId} al analista ${analystUsername}.`);
-  const analystToken = getUserToken(analystUsername);
-  const assignee = getLocalUserByUsername(analystUsername);
+  // Obtener token y datos de usuario en paralelo
+  const [analystToken, assignee] = await Promise.all([
+    Promise.resolve(getUserToken(analystUsername)),
+    Promise.resolve(getLocalUserByUsername(analystUsername))
+  ]);
 
   if (!analystToken) {
     logger.error(`No se pudo obtener token para el analista: ${analystUsername}`);
@@ -220,7 +228,11 @@ async function assignTicketToAnalyst(ticketId, analystUsername) {
  */
 async function resolveTicket(ticketId, analystUsername, includeAttachment = false) {
   logger.info(`Resolviendo ticket ${ticketId} por ${analystUsername} ${includeAttachment ? 'con adjunto de resolución' : ''}.`);
-  const analystToken = getUserToken(analystUsername);
+  // Obtener token y adjunto (si aplica) en paralelo
+  const [analystToken, attachment] = await Promise.all([
+    Promise.resolve(getUserToken(analystUsername)),
+    includeAttachment ? getRandomAttachmentDetails() : Promise.resolve(null)
+  ]);
   if (!analystToken) {
     logger.error(`No se pudo obtener token para el analista: ${analystUsername}`);
     return null;
@@ -230,14 +242,11 @@ async function resolveTicket(ticketId, analystUsername, includeAttachment = fals
   const form = new FormData();
   form.append('ResolutionComment', resolutionCommentText);
 
-  if (includeAttachment) {
-    const attachment = await getRandomAttachmentDetails();
-    if (attachment) {
-      form.append('Attachments', attachment.fileContent, attachment.fileName);
-      logger.info(`Adjuntando archivo a la resolución: ${attachment.fileName}`);
-    } else {
-      logger.warn('Se solicitó adjunto para resolución pero no se pudo obtener uno.');
-    }
+  if (includeAttachment && attachment) {
+    form.append('Attachments', attachment.fileContent, attachment.fileName);
+    logger.info(`Adjuntando archivo a la resolución: ${attachment.fileName}`);
+  } else if (includeAttachment && !attachment) {
+    logger.warn('Se solicitó adjunto para resolución pero no se pudo obtener uno.');
   }
 
   try {
@@ -264,7 +273,7 @@ async function resolveTicket(ticketId, analystUsername, includeAttachment = fals
  */
 async function acceptTicketResolution(ticketId, employeeUsername) {
   logger.info(`Empleado ${employeeUsername} aceptando resolución del ticket ${ticketId}.`);
-  const employeeToken = getUserToken(employeeUsername);
+  const employeeToken = await Promise.resolve(getUserToken(employeeUsername));
   if (!employeeToken) {
     logger.error(`No se pudo obtener token para el empleado: ${employeeUsername}`);
     return null;
@@ -297,7 +306,7 @@ async function acceptTicketResolution(ticketId, employeeUsername) {
  */
 async function lockTicket(ticketId, analystUsername) {
   logger.info(`Bloqueando ticket ${ticketId} por ${analystUsername}.`);
-  const analystToken = getUserToken(analystUsername);
+  const analystToken = await Promise.resolve(getUserToken(analystUsername));
   if (!analystToken) {
     logger.error(`No se pudo obtener token para el analista: ${analystUsername}`);
     return null;
