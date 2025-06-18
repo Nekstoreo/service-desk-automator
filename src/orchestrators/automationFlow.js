@@ -11,19 +11,20 @@ import * as userService from '../services/userService.js';
 import * as ticketService from '../services/ticketLifecycleService.js'; 
 
 // Constantes para la simulación (ajustables)
-const TOTAL_TICKETS_TO_CREATE = 200; // Ahora configurable para pruebas de estrés
+const TOTAL_TICKETS_TO_CREATE = 40; // Ahora configurable para pruebas de estrés
 
 const REQUIRED_ANALYSTS = 2;
-const TICKETS_TO_ASSIGN_PER_ANALYST = 10;
-const TOTAL_TICKETS_TO_ASSIGN = TICKETS_TO_ASSIGN_PER_ANALYST * REQUIRED_ANALYSTS; // 20
+// Porcentaje de tickets que serán asignados y procesados (del total creado)
+const PERCENTAGE_TICKETS_TO_ASSIGN = 0.6; // 60% de los tickets creados
+const TICKETS_TO_ASSIGN_PER_ANALYST_PERCENTAGE = PERCENTAGE_TICKETS_TO_ASSIGN / REQUIRED_ANALYSTS; // 30% cada uno
 
-// Estados de ciclo de vida para los tickets asignados a cada analista
-const LIFECYCLE_DISTRIBUTION = {
-  CLOSED: 2,
-  RESOLVED: 2,
-  LOCKED: 2,
-  IN_PROGRESS_WITH_COMMENTS: 2,
-  IN_PROGRESS_NO_COMMENTS: 2, // Total 10
+// Distribución proporcional de estados de ciclo de vida (porcentajes que suman 1.0)
+const LIFECYCLE_DISTRIBUTION_PERCENTAGES = {
+  CLOSED: 0.25,                    // 25% de los tickets asignados
+  RESOLVED: 0.20,                  // 20% de los tickets asignados
+  LOCKED: 0.10,                    // 10% de los tickets asignados
+  IN_PROGRESS_WITH_COMMENTS: 0.30, // 30% de los tickets asignados
+  IN_PROGRESS_NO_COMMENTS: 0.15,   // 15% de los tickets asignados
 };
 
 /**
@@ -112,6 +113,13 @@ async function runAutomation() {
       await delay(50);
     }
     logger.info(`Total de tickets creados exitosamente: ${createdTickets.length} de ${TOTAL_TICKETS_TO_CREATE} intentos.`);
+    
+    // Calcular números dinámicamente basados en porcentajes
+    const TOTAL_TICKETS_TO_ASSIGN = Math.floor(createdTickets.length * PERCENTAGE_TICKETS_TO_ASSIGN);
+    const TICKETS_TO_ASSIGN_PER_ANALYST = Math.floor(TOTAL_TICKETS_TO_ASSIGN / REQUIRED_ANALYSTS);
+    
+    logger.info(`Se asignarán ${TOTAL_TICKETS_TO_ASSIGN} tickets (${(PERCENTAGE_TICKETS_TO_ASSIGN * 100).toFixed(1)}% del total) divididos entre ${REQUIRED_ANALYSTS} analistas.`);
+    
     if (createdTickets.length < TOTAL_TICKETS_TO_ASSIGN) {
       throw new AppError(`No se crearon suficientes tickets (${createdTickets.length}) para la asignación requerida (${TOTAL_TICKETS_TO_ASSIGN}). Abortando.`, 500, false);
     }
@@ -156,6 +164,17 @@ async function runAutomation() {
         continue;
       }
       logger.info(`Simulando ciclo de vida para ${ticketsForAnalyst.length} tickets del analista ${analystUsername}`);
+      
+      // Calcular números dinámicos basados en porcentajes para este analista
+      const LIFECYCLE_DISTRIBUTION = {
+        CLOSED: Math.floor(ticketsForAnalyst.length * LIFECYCLE_DISTRIBUTION_PERCENTAGES.CLOSED),
+        RESOLVED: Math.floor(ticketsForAnalyst.length * LIFECYCLE_DISTRIBUTION_PERCENTAGES.RESOLVED),
+        LOCKED: Math.floor(ticketsForAnalyst.length * LIFECYCLE_DISTRIBUTION_PERCENTAGES.LOCKED),
+        IN_PROGRESS_WITH_COMMENTS: Math.floor(ticketsForAnalyst.length * LIFECYCLE_DISTRIBUTION_PERCENTAGES.IN_PROGRESS_WITH_COMMENTS),
+        IN_PROGRESS_NO_COMMENTS: Math.floor(ticketsForAnalyst.length * LIFECYCLE_DISTRIBUTION_PERCENTAGES.IN_PROGRESS_NO_COMMENTS),
+      };
+      
+      logger.info(`Distribución para ${analystUsername}: ${LIFECYCLE_DISTRIBUTION.CLOSED} cerrados, ${LIFECYCLE_DISTRIBUTION.RESOLVED} resueltos, ${LIFECYCLE_DISTRIBUTION.LOCKED} bloqueados, ${LIFECYCLE_DISTRIBUTION.IN_PROGRESS_WITH_COMMENTS} en progreso con comentarios, ${LIFECYCLE_DISTRIBUTION.IN_PROGRESS_NO_COMMENTS} en progreso sin comentarios`);
       
       const shuffledTickets = shuffleArray(ticketsForAnalyst.slice()); // Trabajar con una copia barajada
       let ticketIdx = 0;
