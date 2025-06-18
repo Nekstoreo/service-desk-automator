@@ -58,7 +58,6 @@ function handleTicketServiceError(error, context, usernameForContext = '') {
   throw apiError; // Relanza para que el flujo principal pueda decidir cómo continuar
 }
 
-
 /**
  * Crea un nuevo ticket.
  * @param {string} creatorUsername - Username del empleado que crea el ticket.
@@ -78,7 +77,6 @@ async function createTicket(creatorUsername, subcategory, includeAttachment = fa
     logger.error(`No se pudo obtener token o datos para el creador: ${creatorUsername}`);
     return null;
   }
-
 
   // La subcategoría se obtiene ahora desde el flujo principal y se pasa solo el nombre
 
@@ -363,10 +361,8 @@ export {
   resolveTicket,
   acceptTicketResolution,
   lockTicket,
-  // Podríamos añadir más funciones como reopenTicket, unlockTicket si son necesarias
-  // y están en la API (reopen y unlock están en la documentación).
-  ANALYST_COMMENTS, // Exportar para uso en el orquestador
-  USER_COMMENTS,    // Exportar para uso en el orquestador
+  ANALYST_COMMENTS,
+  USER_COMMENTS,
   ANALYST_FOLLOWUP_COMMENTS,
   USER_FOLLOWUP_COMMENTS,
   USER_CLOSURE_COMMENTS

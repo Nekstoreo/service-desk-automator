@@ -5,7 +5,7 @@ import allUsers, { USER_ROLES, getUsersByRole } from '../data/users.js'; // Impo
 import logger from '../utils/logger.js';
 import { handleError, APIError, AppError } from '../utils/errorHandler.js';
 import { getUserToken } from './authService.js'; // Para obtener el token del admin
-import { delay } from '../utils/helpers.js';
+import { delay, selectRandomElement } from '../utils/helpers.js';
 
 const USERS_ENDPOINT = `${config.BASE_URL}/Users`;
 
@@ -256,5 +256,23 @@ function getLocalUserByUsername(username) {
     return allUsers.find(u => u.username === username);
 }
 
+/**
+ * Obtiene un usuario administrador aleatorio de la lista de usuarios locales.
+ * @returns {object|null} Un objeto de usuario administrador o null si no se encuentra ninguno.
+ */
+function getRandomAdminUser() {
+  const adminUsers = getUsersByRole(USER_ROLES.ADMINISTRATOR);
+  if (adminUsers.length === 0) {
+    logger.warn('No se encontraron usuarios administradores configurados localmente.');
+    return null;
+  }
+  return selectRandomElement(adminUsers);
+}
 
-export { fetchAndStoreUserIds, promoteUserToRole, promoteAnalysts, getLocalUserByUsername };
+export {
+  fetchAndStoreUserIds,
+  promoteUserToRole,
+  promoteAnalysts,
+  getLocalUserByUsername,
+  getRandomAdminUser,
+};

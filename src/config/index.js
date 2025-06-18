@@ -26,7 +26,7 @@ const config = {
    * Podría ser utilizado por el logger.
    * @type {string}
    */
-  LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+  LOG_LEVEL: process.env.LOG_LEVEL || 'debug',
 
   /**
    * Ruta a la carpeta que contiene los archivos de muestra para adjuntar.
